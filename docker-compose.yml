@@ -1,0 +1,150 @@
+# Full Online Bookstore stack.
+#
+# This file only references images, so it can be shipped as a GitHub Release asset and used
+# on the demo machine:   docker compose pull && docker compose up -d
+# For local development and CI, docker-compose.override.yml (loaded automatically when present)
+# adds "build:" sections and exposes extra ports:   docker compose up --build --wait
+#
+# Configuration comes from environment variables / a .env file (see .env.example).
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  environment: &common-env
+    JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-0123456789abcdef}
+
+x-postgres-healthcheck: &postgres-healthcheck
+  test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+  interval: 5s
+  timeout: 3s
+  retries: 20
+
+services:
+  # ---------------------------------------------------------------- databases
+  auth-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: ${DB_USERNAME:-bookstore}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-bookstore}
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    healthcheck: *postgres-healthcheck
+
+  catalog-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: catalog_db
+      POSTGRES_USER: ${DB_USERNAME:-bookstore}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-bookstore}
+    volumes:
+      - catalog-db-data:/var/lib/postgresql/data
+    healthcheck: *postgres-healthcheck
+
+  order-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: order_db
+      POSTGRES_USER: ${DB_USERNAME:-bookstore}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-bookstore}
+    volumes:
+      - order-db-data:/var/lib/postgresql/data
+    healthcheck: *postgres-healthcheck
+
+  inventory-db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: inventory_db
+      MYSQL_USER: ${DB_USERNAME:-bookstore}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-bookstore}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+    volumes:
+      - inventory-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # ---------------------------------------------------------------- services
+  auth-service:
+    <<: *service-defaults
+    image: ${IMAGE_PREFIX:-ghcr.io/patpoooot/online-bookstore}/auth-service:${IMAGE_TAG:-latest}
+    environment:
+      <<: *common-env
+      DB_URL: jdbc:postgresql://auth-db:5432/auth_db
+      DB_USERNAME: ${DB_USERNAME:-bookstore}
+      DB_PASSWORD: ${DB_PASSWORD:-bookstore}
+    depends_on:
+      auth-db:
+        condition: service_healthy
+
+  catalog-service:
+    <<: *service-defaults
+    image: ${IMAGE_PREFIX:-ghcr.io/patpoooot/online-bookstore}/catalog-service:${IMAGE_TAG:-latest}
+    environment:
+      <<: *common-env
+      DB_URL: jdbc:postgresql://catalog-db:5432/catalog_db
+      DB_USERNAME: ${DB_USERNAME:-bookstore}
+      DB_PASSWORD: ${DB_PASSWORD:-bookstore}
+    depends_on:
+      catalog-db:
+        condition: service_healthy
+
+  inventory-service:
+    <<: *service-defaults
+    image: ${IMAGE_PREFIX:-ghcr.io/patpoooot/online-bookstore}/inventory-service:${IMAGE_TAG:-latest}
+    environment:
+      <<: *common-env
+      DB_URL: jdbc:mysql://inventory-db:3306/inventory_db
+      DB_USERNAME: ${DB_USERNAME:-bookstore}
+      DB_PASSWORD: ${DB_PASSWORD:-bookstore}
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+
+  order-service:
+    <<: *service-defaults
+    image: ${IMAGE_PREFIX:-ghcr.io/patpoooot/online-bookstore}/order-service:${IMAGE_TAG:-latest}
+    environment:
+      <<: *common-env
+      DB_URL: jdbc:postgresql://order-db:5432/order_db
+      DB_USERNAME: ${DB_USERNAME:-bookstore}
+      DB_PASSWORD: ${DB_PASSWORD:-bookstore}
+      INVENTORY_URL: http://inventory-service:8083
+      PAYMENT_URL: http://order-service:8084
+    depends_on:
+      order-db:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+
+  api-gateway:
+    <<: *service-defaults
+    image: ${IMAGE_PREFIX:-ghcr.io/patpoooot/online-bookstore}/api-gateway:${IMAGE_TAG:-latest}
+    environment:
+      <<: *common-env
+      AUTH_SERVICE_URL: http://auth-service:8081
+      CATALOG_SERVICE_URL: http://catalog-service:8082
+      INVENTORY_SERVICE_URL: http://inventory-service:8083
+      ORDER_SERVICE_URL: http://order-service:8084
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+
+volumes:
+  auth-db-data:
+  catalog-db-data:
+  order-db-data:
+  inventory-db-data:

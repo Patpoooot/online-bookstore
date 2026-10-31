@@ -1,0 +1,10 @@
+# Keep the Docker build context small (context = repository root)
+**/target/
+.git/
+.github/
+.idea/
+.vscode/
+*.iml
+docs/
+scripts/
+.env

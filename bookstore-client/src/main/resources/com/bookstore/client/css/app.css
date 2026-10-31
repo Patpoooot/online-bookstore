@@ -1,0 +1,10 @@
+/* Global stylesheet of the JavaFX client. */
+.root-pane {
+    -fx-background-color: #fafafa;
+    -fx-padding: 16;
+}
+
+.title {
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+}
