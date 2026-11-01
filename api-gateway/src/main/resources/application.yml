@@ -1,0 +1,58 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          # Path convention: every public API lives under /api/<resource>; admin-only
+          # endpoints live under /api/admin/<resource> (role checked by the gateway).
+          routes:
+            - id: auth-service
+              uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/auth/**
+            - id: catalog-service
+              uri: ${CATALOG_SERVICE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/books/**,/api/authors/**,/api/categories/**,/api/admin/books/**
+            - id: inventory-service
+              uri: ${INVENTORY_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/inventory/stock/**,/api/admin/inventory/**
+              # /api/inventory/reservations/** is internal (called by the Order Service only)
+              # and is deliberately NOT routed by the gateway.
+            - id: order-service
+              uri: ${ORDER_SERVICE_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/cart/**,/api/orders/**,/api/admin/orders/**
+          httpclient:
+            connect-timeout: 2000
+            response-timeout: 10s
+
+bookstore:
+  jwt:
+    # Must be identical to the Auth Service secret (HMAC-SHA256, at least 32 bytes).
+    secret: ${JWT_SECRET:dev-only-secret-change-me-0123456789abcdef}
+  # Paths reachable without a token
+  public-paths:
+    - /api/auth/**
+    - GET /api/books/**
+    - GET /api/authors/**
+    - GET /api/categories/**
+    - GET /api/inventory/stock/**
+
+# Exposes GET /health (required by the deployment health checks)
+management:
+  endpoints:
+    web:
+      base-path: /
+      exposure:
+        include: health,info
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name},%X{correlationId:-}]"

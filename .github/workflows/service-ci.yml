@@ -1,0 +1,38 @@
+# Reusable, service-specific build: compiles one module (plus the modules it depends on)
+# and runs its unit tests (Surefire) and integration tests (Failsafe: Testcontainers, contracts).
+name: Service CI
+
+on:
+  workflow_call:
+    inputs:
+      module:
+        description: Maven module (directory) to build and test
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build & test ${{ inputs.module }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build and test
+        run: ./mvnw -B -pl ${{ inputs.module }} -am verify
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ inputs.module }}
+          path: |
+            ${{ inputs.module }}/target/surefire-reports/
+            ${{ inputs.module }}/target/failsafe-reports/
+          if-no-files-found: ignore

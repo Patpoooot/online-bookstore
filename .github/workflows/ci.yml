@@ -1,0 +1,122 @@
+# Continuous integration (README §5.1)
+#  1. detect which services changed (path filters)
+#  2. build & test only those services (reusable service-specific workflow)
+#  3. start the whole stack with "docker compose up --wait"
+#  4. run the end-to-end tests against the API Gateway
+name: CI
+
+on: push
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    outputs:
+      api-gateway: ${{ steps.filter.outputs.api-gateway }}
+      auth-service: ${{ steps.filter.outputs.auth-service }}
+      catalog-service: ${{ steps.filter.outputs.catalog-service }}
+      inventory-service: ${{ steps.filter.outputs.inventory-service }}
+      order-service: ${{ steps.filter.outputs.order-service }}
+      bookstore-client: ${{ steps.filter.outputs.bookstore-client }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # Changes to the parent POM or the shared library rebuild every module that uses them.
+          filters: |
+            shared: &shared
+              - 'pom.xml'
+              - 'bookstore-common/**'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/service-ci.yml'
+            api-gateway:
+              - *shared
+              - 'api-gateway/**'
+            auth-service:
+              - *shared
+              - 'auth-service/**'
+            catalog-service:
+              - *shared
+              - 'catalog-service/**'
+            inventory-service:
+              - *shared
+              - 'inventory-service/**'
+              - 'contracts/**'
+            order-service:
+              - *shared
+              - 'order-service/**'
+              - 'contracts/**'
+            bookstore-client:
+              - 'pom.xml'
+              - 'bookstore-client/**'
+
+  api-gateway:
+    needs: changes
+    if: needs.changes.outputs.api-gateway == 'true'
+    uses: ./.github/workflows/service-ci.yml
+    with:
+      module: api-gateway
+
+  auth-service:
+    needs: changes
+    if: needs.changes.outputs.auth-service == 'true'
+    uses: ./.github/workflows/service-ci.yml
+    with:
+      module: auth-service
+
+  catalog-service:
+    needs: changes
+    if: needs.changes.outputs.catalog-service == 'true'
+    uses: ./.github/workflows/service-ci.yml
+    with:
+      module: catalog-service
+
+  inventory-service:
+    needs: changes
+    if: needs.changes.outputs.inventory-service == 'true'
+    uses: ./.github/workflows/service-ci.yml
+    with:
+      module: inventory-service
+
+  order-service:
+    needs: changes
+    if: needs.changes.outputs.order-service == 'true'
+    uses: ./.github/workflows/service-ci.yml
+    with:
+      module: order-service
+
+  bookstore-client:
+    needs: changes
+    if: needs.changes.outputs.bookstore-client == 'true'
+    uses: ./.github/workflows/service-ci.yml
+    with:
+      module: bookstore-client
+
+  e2e:
+    name: End-to-end tests (composed stack)
+    needs: [api-gateway, auth-service, catalog-service, inventory-service, order-service]
+    # Run even when some service jobs were skipped, but never after a failure.
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Start the whole stack
+        run: docker compose up --build --wait --wait-timeout 600
+      - name: Run end-to-end tests against the API Gateway
+        run: ./mvnw -B -pl e2e-tests -am verify -Pe2e -Dgateway.url=http://localhost:8080
+      - name: Service logs
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v

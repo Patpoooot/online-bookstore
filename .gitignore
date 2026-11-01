@@ -1,0 +1,29 @@
+# Build output
+target/
+out/
+build/
+dist/
+
+# Maven wrapper download (the wrapper jar is fetched on first use)
+.mvn/wrapper/maven-wrapper.jar
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local configuration / secrets
+.env
+*.local.yml
+
+# Logs
+*.log
+logs/

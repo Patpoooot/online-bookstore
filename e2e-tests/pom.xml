@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.bookstore</groupId>
+        <artifactId>bookstore-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <!--
+        Black-box end-to-end tests run against the API Gateway of the composed stack.
+        Start the stack with Docker Compose, then activate the "e2e" profile
+        (see docs/development.md for the exact commands). The gateway URL defaults to
+        http://localhost:8080 and can be overridden with -Dgateway.url=...
+        Without the profile the tests are skipped, so a normal build does not need the stack.
+    -->
+    <artifactId>e2e-tests</artifactId>
+    <name>End-to-end Tests</name>
+
+    <properties>
+        <skipE2E>true</skipE2E>
+        <gateway.url>http://localhost:8080</gateway.url>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <skipITs>${skipE2E}</skipITs>
+                    <systemPropertyVariables>
+                        <gateway.url>${gateway.url}</gateway.url>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>e2e</id>
+            <properties>
+                <skipE2E>false</skipE2E>
+            </properties>
+        </profile>
+    </profiles>
+</project>

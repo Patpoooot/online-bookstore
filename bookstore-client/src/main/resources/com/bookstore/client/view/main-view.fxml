@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.BorderPane?>
+
+<!-- Placeholder main window. Replace with the real layout (TASK-19). -->
+<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" styleClass="root-pane">
+    <center>
+        <Label text="Online Bookstore - client skeleton" styleClass="title"/>
+    </center>
+</BorderPane>
